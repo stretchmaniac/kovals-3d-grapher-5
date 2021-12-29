@@ -14,15 +14,24 @@ let mainCanvasHeight = 0;
 let rendering = false;
 let hasQueuedFrame = false;
 let refinementIter = 0;
-const maxRefinement = 500;
+let renderingPaused = false;
+const maxRefinement = 1000000;
 
 function initWebGL(){
     // clear the canvas and init webgl 
+    const canvasContainer = document.getElementById('canvas-container');
     const canvas = document.getElementById('plot_canvas');
-    mainCanvasWidth = canvas.clientWidth;
-    mainCanvasHeight = canvas.clientHeight;
+    mainCanvasWidth = canvasContainer.clientWidth;
+    mainCanvasHeight = canvasContainer.clientHeight;
+
+    console.log('width:', mainCanvasWidth);
+    console.log('height:', mainCanvasHeight);
+
+    canvas.width = mainCanvasWidth;
+    canvas.height = mainCanvasHeight;
 
     const gl = canvas.getContext('webgl2');
+    console.log('webgl2 context acquired.');
 
     // Set clear color to white, fully opaque
     gl.clearColor(1.0, 1.0, 1.0, 1.0);
@@ -44,7 +53,7 @@ function initWebGL(){
             },
             uScreenSize: {
                 location: gl.getUniformLocation(shaderProgram, 'uScreenSize'),
-                value: [canvas.clientWidth, canvas.clientHeight]
+                value: [mainCanvasWidth, mainCanvasHeight]
             },
             uMultisamples: {
                 location: gl.getUniformLocation(shaderProgram, 'uMultisamples'),
@@ -102,6 +111,7 @@ function initWebGL(){
             fbASetToRender: true
         }
     };
+    console.log('\tray cast program linked.');
     globalGL = gl;
     globalRayCastProgram = rayCastProgram;
 
@@ -120,6 +130,7 @@ function initWebGL(){
             }
         }
     };
+    console.log('\tvoxel init program linked.');
 
     const voxelAdjProgram = loadAndLinkGenericShader(gl, passthrough_vert, voxelAdj_frag);
     globalOuterVoxelAdjProgram = {
@@ -140,6 +151,7 @@ function initWebGL(){
             }
         }
     };
+    console.log('\tvoxel processing program linked');
 
     const denseProgram = loadAndLinkGenericShader(gl, passthrough_vert, denseVoxelInit_frag);
     globalDenseVoxelProgram = {
@@ -166,14 +178,13 @@ function initWebGL(){
             }
         }
     }
+    console.log('All shaders linked successfully');
 
     bindFullScreenQuad(gl);
 
     const startTime = Date.now();
     initVoxelTextures(gl);
     console.log('Texture init time: ' + (Date.now() - startTime));
-
-    window.requestAnimationFrame(renderRayCast)
 }
 
 const { mat4, mat3, vec3, vec4 } = glMatrix;
@@ -317,11 +328,11 @@ function renderRayCast(timestep){
 
     // swap render and target buffers
     rayCastProgram.fbs.fbASetToRender = !rayCastProgram.fbs.fbASetToRender;
-    console.log('refinement: ' + refinementIter);
+    document.getElementById('ssp-stat').innerText = 'samples per pixel: ' + ((accumulationBufferCount + 1) * uMultisamples.value);
 
     rendering = false;
 
-    if(refinementIter < maxRefinement){
+    if(refinementIter < maxRefinement && !renderingPaused){
         refinementIter++;
         if(refinementIter < maxRefinement){
             window.requestAnimationFrame(renderRayCast);

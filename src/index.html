@@ -11,8 +11,51 @@
     <link rel="stylesheet" href="css/main.css">
 </head>
 
-<body onload="rotateInit(); initWebGL();">
-    <canvas width="1500px" height="900px" id="plot_canvas"></canvas>
+<body onload="rotateInit(); UIInit();">
+    <div id='main-container'>
+        <div id='ui-bar'>
+            GLSL evaluation function: <br>
+            <textarea id='evaluation-input'>float evaluate(vec3 p){
+    float x = p.x;
+    float y = p.y;
+    float z = p.z;
+    
+    return 0.8 - length(p) -1.0 + abs(p.x) + abs(p.y) + abs(p.z);
+}</textarea> <br>
+            <select id='example-plot-select' onchange='exampleSelected();'>
+                <option value='1'>Example 1</option>
+                <option value='2'>Example 2</option>
+                <option value='3'>Example 3</option>
+                <option value='menger'>Menger Sponge</option>
+                <option value='moms-favorite'>Mom's Favorite</option>
+            </select>
+            <button id='plot-button' onclick='plotClicked();'>Plot</button>
+            <button id='pause-plotting' onclick='pauseClicked();'>Pause Plotting</button>
+            <button id='resume-plotting' onclick='resumeClicked();'>Resume Plotting</button>
+            <br>
+            <div id='stats-container'>
+                <div id='ssp-stat'></div>
+            </div>
+            <br>
+            Color evaluation function <br>
+            <textarea id='color-input'>vec3 getColor(vec3 p, vec3 inDir){
+    // the width of a voxel
+    float eps = 0.002;
+    bool insideSurface = evaluate(p - eps * inDir) &lt; 0.0;
+
+    if(insideSurface){
+        // yellow
+        return vec3(1.0, 0.9725, 0.4314);
+    } else {
+        // white 
+        return vec3(1.0, 1.0, 1.0);
+    }
+}</textarea>
+        </div>
+        <div id='canvas-container'>
+            <canvas id="plot_canvas"></canvas>
+        </div>
+    </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/3.4.2/gl-matrix-min.js" integrity="sha512-eV9ExyTa3b+YHr99IBTYpwk4wbgDMDlfW8uTxhywO8dWb810fGUSKDgHhEv1fAqmJT4jyYnt1iWWMW4FRxeQOQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="js/geo.js"></script>
     <script src="shaders/vertex_shaders.js"></script>
@@ -20,5 +63,6 @@
     <script src="shaders/fragment_shaders.js"></script>
     <script src="js/render.js"></script>
     <script src="js/rotate.js"></script>
+    <script src="js/ui.js"></script>
 </body>
 </html>

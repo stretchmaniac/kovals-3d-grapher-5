@@ -29,7 +29,7 @@ int getRandZeroOneTwo(int seed){
     return int(floor(rand(sin(float(seed) * 0.97634578624)) * 3.0));
 }
 
-vec4 getIlluminationRayTrace(vec3 rayOrigin, vec3 normal, int seed){
+vec4 getIlluminationRayTrace(vec3 rayOrigin, vec3 normal, vec3 inDir, int seed){
     int numSamples = 1;
     vec3 total = vec3(0.0);
     for(int nSample = 0; nSample < numSamples; nSample++){
@@ -70,7 +70,7 @@ vec4 getIlluminationRayTrace(vec3 rayOrigin, vec3 normal, int seed){
 
         vec3 pt2 = getAccRayCastPtRough(pt1, dir1);
         if(pt2.x != -2.0){
-            vec3 normal2 = getNormal(pt2, dir1);
+            vec3 normal2 = getNormal(pt2, pt1, dir1);
             pt2 += normal2 * defaultOffset;
             vec3 dir2 = getNewDir(startSeed++, normal2);
             int lightIndex2 = getRandZeroOneTwo(startSeed++);
@@ -85,7 +85,7 @@ vec4 getIlluminationRayTrace(vec3 rayOrigin, vec3 normal, int seed){
 
             vec3 pt3 = getAccRayCastPtRough(pt2, dir2);
             if(pt3.x != -2.0){
-                vec3 normal3 = getNormal(pt3, dir2);
+                vec3 normal3 = getNormal(pt3, pt2, dir2);
                 pt3 += normal3 * defaultOffset;
                 int lightIndex3 = getRandZeroOneTwo(startSeed++);
                 vec3 lightPos3 = sampleSphere(getLightPos(lightIndex3), lightRadius, pt3, startSeed++);
@@ -96,12 +96,12 @@ vec4 getIlluminationRayTrace(vec3 rayOrigin, vec3 normal, int seed){
                     dot(lightDir3, normal3) * vec3(getLightRadiance(lightIndex3)) / dot(offset3, offset3) 
                     : vec3(0.0);
 
-                neighborContribution2 = totalRadiance * getColor(pt3);
+                neighborContribution2 = totalRadiance * getColor(pt3, dir2);
             }
 
-            neighborContribution1 = (lightContribution2 + neighborContribution2) * getColor(pt2);
+            neighborContribution1 = (lightContribution2 + neighborContribution2) * getColor(pt2, dir1);
         }
-        total += (lightContribution1 + neighborContribution1) * getColor(pt1);
+        total += (lightContribution1 + neighborContribution1) * getColor(pt1, inDir);
     }
     total /= float(numSamples);
     return vec4(total, 1.0);
