@@ -224,6 +224,18 @@ vec3 lowDiscrepancyHalfSphereCosineBiased(int seed){
 }
 `
 
+const lowDiscrepancySquare = `
+vec2 lowDiscrepancySquare(int seed){
+    float sqrt2 = 1.41421356237;
+    float sqrt3 = 1.73205080757;
+    float sqrt5 = 2.2360679775;
+    float x = mod(sqrt5 + float(seed) * sqrt2, 1.0);
+    float y = mod(sqrt5 + float(seed) * sqrt3, 1.0);
+
+    return vec2(x, y);
+}
+`;
+
 // dense texture is 1024 x 1024
 const denseVoxPtToFloatPt = `
 vec3 denseVoxPtToFloatPt(ivec3 voxPt){
@@ -437,9 +449,9 @@ function setFragShaders(){
         }
 
         // binary search in interval 
-        float vMultiplier = minT > 0.0 ? -1.0 : 1.0;
-        minT *= vMultiplier;
-        maxT *= vMultiplier;
+        float vMultiplier = minV > 0.0 ? -1.0 : 1.0;
+        minV *= vMultiplier;
+        maxV *= vMultiplier;
         for(int i = 0; i < 10; i++){
             if(minV > -0.0001 || maxV < 0.0001){
                 return false;
@@ -635,18 +647,60 @@ function setFragShaders(){
     uniform highp usampler2D copyTex;
     layout(location = 0) out vec4 outColor;
 
+    vec4 mapToRGB(vec4 radiance);
+
     void main(){
         uvec4 raw = texture(copyTex, 0.5 * (pixPos + vec2(1.0)), 0.0);
-        float MAX_COLOR = float(1 << 16);
-        outColor = vec4(
-            float(raw.x) / MAX_COLOR,
-            float(raw.y) / MAX_COLOR,
-            float(raw.z) / MAX_COLOR,
-            float(raw.w) / MAX_COLOR
+
+        vec4 unmapped = vec4(
+            uintBitsToFloat(raw.x),
+            uintBitsToFloat(raw.y),
+            uintBitsToFloat(raw.z),
+            uintBitsToFloat(raw.w)
+        );
+
+        outColor = mapToRGB(unmapped);
+    }
+
+    // from here: https://computergraphics.stackexchange.com/questions/11018/how-to-change-a-rgb-value-using-a-radiance-value
+    vec3 ACESFilm(vec3 x){
+        float a = 2.51;
+        float b = 0.03;
+        float c = 2.43;
+        float d = 0.59;
+        float e = 0.14;
+        return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+    }
+    float linearToSRGB(float x){
+        return (x < 0.0031308) ?
+            x * 12.92 :
+            pow(x, 1.0/2.4) * 1.055 - 0.055;
+    }
+    vec3 linearToSRGB(vec3 x){
+        return vec3(
+            linearToSRGB(x.r),
+            linearToSRGB(x.g),
+            linearToSRGB(x.b)
         );
     }
 
-    `
+    vec4 mapToRGB(vec4 radiance){
+        vec3 hdr = radiance.xyz;
+        hdr *= 0.1;
+
+        // Limit saturation to 99% - maps pure colors like (1, 0, 0) to (1, 0.01, 0.01)
+        float maxComp = max(hdr.r, max(hdr.g, hdr.b));
+        hdr = max(hdr, 0.01 * maxComp);
+
+        // Apply tonemapping curve
+        vec3 ldrLinear = ACESFilm(hdr);
+
+        // Convert to sRGB
+        vec3 ldrSRGB = linearToSRGB(hdr);
+        return vec4(ldrSRGB, radiance.w);
+    }
+    `;
+
 
     // ================================ BEGIN RAYCAST ======================================
 
@@ -686,42 +740,33 @@ function setFragShaders(){
     vec3 getAccRayCastPtRough(vec3 rayOrigin, vec3 rayDir);
     vec3 getNormal(vec3 pt, vec3 incomingRayOrigin, vec3 incomingRayDir);
     vec4 getIllumination(vec3 pt, vec3 normal, int seed);
-    vec4 mapToRGB(vec4 radiance);
 
     ` + evalFunc + colorFunc + rayIntersectBounds + voxCoordToTexCoord + getOctantValue + voxPtToFloatPt + 
     floatPtToVoxPt + floatPtToDenseVoxPt + denseVoxToPix + denseVoxPtToFloatPt + rand + getPerp +
-    halfSphereSampling + raytrace_src_diffuse +`
+    halfSphereSampling + lowDiscrepancySquare + raytrace_src_diffuse +`
 
     void main(){
-        // basic multi-sampling
-        vec2 samples[4];
-        samples[0] = vec2(0.125, 0.375);
-        samples[1] = vec2(0.375, 0.875);
-        samples[2] = vec2(0.875, 0.625);
-        samples[3] = vec2(0.625, 0.125);
-
-        float MAX_COLOR = float(1 << 16);
-
         // get previous pixel value, if applicable 
         vec4 prevPixValue = vec4(0.0);
         if(accumulationBufferCount > 0){
             uvec4 uPrevPixValue = texture(accumulationBuffer, 0.5*(pixPos + vec2(1.0)), 0.0);
             prevPixValue = vec4(
-                float(uPrevPixValue.x) / MAX_COLOR,
-                float(uPrevPixValue.y) / MAX_COLOR,
-                float(uPrevPixValue.z) / MAX_COLOR,
-                float(uPrevPixValue.w) / MAX_COLOR
+                uintBitsToFloat(uPrevPixValue.x),
+                uintBitsToFloat(uPrevPixValue.y),
+                uintBitsToFloat(uPrevPixValue.z),
+                uintBitsToFloat(uPrevPixValue.w)
             );
         }
 
         vec4 color = vec4(0.0, 0.0, 0.0, 0.0);
         vec3 offset1 = vRayOrigin10 - vRayOrigin00;
         vec3 offset2 = vRayOrigin01 - vRayOrigin00;
-        for(int i = 0; i < 4; i++){
+        const int maxMultisample = 1;
+        for(int i = 0; i < maxMultisample; i++){
             if(float(i) >= uMultisamples){
                 break;
             }
-            vec2 samplePos = samples[i] - vec2(0.5, 0.5);
+            vec2 samplePos = lowDiscrepancySquare(accumulationBufferCount*maxMultisample + i) - vec2(0.5, 0.5);
             vec3 origin = vRayOrigin00 + samplePos.x * offset1 + samplePos.y * offset2;
             vec3 dir = normalize(origin - uCamLocation);
 
@@ -729,13 +774,13 @@ function setFragShaders(){
             int pixelOffset = int(97.0 * float(accumulationBufferCount + 1) * 
                 rand(sin(rayIntPt.x*rayIntPt.y + rayIntPt.y*rayIntPt.z + rayIntPt.z*rayIntPt.x)));
             if(rayIntPt.x == -2.0){
-                color += mapToRGB(vec4(vec3(10.0).xyz, 1.0));
+                color += vec4(vec3(10.0).xyz, 1.0);
             }
             else {
                 vec3 normal = getNormal(rayIntPt, origin, dir);
                 vec4 illumination = getIlluminationRayTrace(rayIntPt, normal, dir, pixelOffset + int(uMultisamples) * accumulationBufferCount + i);
 
-                color += mapToRGB(vec4(illumination.xyz, 1.0));
+                color += illumination;
             }
         }
 
@@ -745,49 +790,11 @@ function setFragShaders(){
         // average with previous pixel value 
         vec4 outColorF = prevPixValue + (iterColor - prevPixValue) / float(accumulationBufferCount + 1);
         outColor = uvec4(
-            uint(outColorF.x * MAX_COLOR),
-            uint(outColorF.y * MAX_COLOR),
-            uint(outColorF.z * MAX_COLOR),
-            uint(outColorF.w * MAX_COLOR)
+            floatBitsToUint(outColorF.x),
+            floatBitsToUint(outColorF.y),
+            floatBitsToUint(outColorF.z),
+            floatBitsToUint(outColorF.w)
         );
-    }
-
-    // from here: https://computergraphics.stackexchange.com/questions/11018/how-to-change-a-rgb-value-using-a-radiance-value
-    vec3 ACESFilm(vec3 x){
-        float a = 2.51;
-        float b = 0.03;
-        float c = 2.43;
-        float d = 0.59;
-        float e = 0.14;
-        return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
-    }
-    float linearToSRGB(float x){
-        return (x < 0.0031308) ?
-            x * 12.92 :
-            pow(x, 1.0/2.4) * 1.055 - 0.055;
-    }
-    vec3 linearToSRGB(vec3 x){
-        return vec3(
-            linearToSRGB(x.r),
-            linearToSRGB(x.g),
-            linearToSRGB(x.b)
-        );
-    }
-
-    vec4 mapToRGB(vec4 radiance){
-        vec3 hdr = radiance.xyz;
-        hdr *= 0.1;
-
-        // Limit saturation to 99% - maps pure colors like (1, 0, 0) to (1, 0.01, 0.01)
-        float maxComp = max(hdr.r, max(hdr.g, hdr.b));
-        hdr = max(hdr, 0.01 * maxComp);
-
-        // Apply tonemapping curve
-        vec3 ldrLinear = ACESFilm(hdr);
-
-        // Convert to sRGB
-        vec3 ldrSRGB = linearToSRGB(hdr);
-        return vec4(ldrSRGB, radiance.w);
     }
 
     // one of evaluate(p1) and evaluate(p2) must be zero
@@ -871,7 +878,7 @@ function setFragShaders(){
         vec3 dfL = vec3(dfdxL, dfdyL, dfdzL);
 
         vec3 res = dfR - dfL;
-        if(length(res) == 0.0 && false){
+        if(length(res) == 0.0){
             // this might be a solid region instead of a surface... search for a boundary point 
             float voxelLength = 1.5 / 1024.0;
             vec3 boundaryPt = findNearbySolidBoundary(pt, voxelLength);
@@ -911,6 +918,21 @@ function setFragShaders(){
             vec3 offset1 = normalize(b1 - boundaryPt);
             vec3 offset2 = normalize(b2 - boundaryPt);
             vec3 perp = normalize(cross(offset1, offset2));
+
+            float eps = 0.001;
+            float nVal = evaluate(pt + eps * perp);
+
+            // project pt onto the ray 
+            vec3 off = pt - incomingRayOrigin;
+            vec3 proj = incomingRayOrigin + dot(off, incomingRayDir) * incomingRayDir;
+
+            eps = 0.01;
+            float vVal = evaluate(proj - eps * incomingRayDir);
+
+            if(nVal == 0.0 && vVal != 0.0 || nVal != 0.0 && vVal == 0.0){
+                perp *= -1.0;
+            }
+
             return perp;
         }
 

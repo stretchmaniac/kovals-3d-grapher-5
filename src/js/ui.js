@@ -5,6 +5,9 @@ function plotClicked(){
 
     setFragShaders();
 
+    resumeClicked();
+    refinementIter = 0;
+
     initWebGL();
     window.requestAnimationFrame(renderRayCast);
 }
@@ -21,6 +24,21 @@ function resumeClicked(){
 function exampleSelected(){
     const selectionEl = document.getElementById('example-plot-select');
     const evalInput = document.getElementById('evaluation-input');
+    const colorInput = document.getElementById('color-input');
+    colorInput.value = 
+`vec3 getColor(vec3 p, vec3 inDir){
+    // the width of a voxel
+    float eps = 0.002;
+    bool insideSurface = evaluate(p - eps * inDir) < 0.0;
+
+    if(insideSurface){
+        // yellow
+        return vec3(1.0, 0.9725, 0.4314);
+    } else {
+        // white 
+        return vec3(1.0, 1.0, 1.0);
+    }
+}`;
     const value = selectionEl.value;
     if(value === 'moms-favorite'){
         evalInput.value = 
@@ -78,6 +96,42 @@ function exampleSelected(){
     float z = p.z;
 
     return 0.6 - length(p) + 0.1*cos(x*10.0)+0.1*cos(y*10.0)+0.1*cos(z*10.0) + 0.2*cos(9.0 * length(p)) + 0.01*cos(50.0 * length(p)) - abs(0.01/x);
+}`;
+    } else if(value === 'multiple-surface'){
+        evalInput.value = 
+`float evalSurface1(vec3 p){
+    float x = p.x;
+    float y = p.y;
+    float z = p.z;
+
+    return z - 0.2 * cos(x*5.0) - 0.2*cos(y*5.0);
+}
+
+float evalSurface2(vec3 p){
+    float x = p.x;
+    float y = p.y;
+    float z = p.z;
+
+    return 0.5 - x*x - z*z;
+}
+
+float evaluate(vec3 p){    
+    float s1 = evalSurface1(p);
+    float s2 = evalSurface2(p);
+    if(abs(s1) > abs(s2)){
+        return s2;
+    }
+    return s1;
+}`;
+        colorInput.value = 
+`vec3 getColor(vec3 p, vec3 inDir){
+    float s1 = evalSurface1(p);
+    float s2 = evalSurface2(p);
+
+    if(abs(s1) < abs(s2)){
+        return vec3(1.0, 0.0, 0.0);
+    }
+    return vec3(0.0, 1.0, 0.0);
 }`;
     }
 }

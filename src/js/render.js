@@ -37,7 +37,7 @@ function initWebGL(){
     gl.clearColor(1.0, 1.0, 1.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    const overallIntensity = 2500;
+    const overallIntensity = 500;
 
     const shaderProgram = loadAndLinkGenericShader(gl, raycast_vert, raycast_frag);
     const rayCastProgram = {
@@ -57,7 +57,7 @@ function initWebGL(){
             },
             uMultisamples: {
                 location: gl.getUniformLocation(shaderProgram, 'uMultisamples'),
-                value: 4
+                value: 1
             },
             uFrontLightPos: {
                 location: gl.getUniformLocation(shaderProgram, 'uFrontLightPos'),
@@ -81,7 +81,7 @@ function initWebGL(){
             },
             uSideLightIntensity: {
                 location: gl.getUniformLocation(shaderProgram, 'uSideLightIntensity'),
-                value: [.8 * overallIntensity, .8 * overallIntensity, .8 * overallIntensity]
+                value: [0.8 * overallIntensity, .8 * overallIntensity, .8 * overallIntensity]
             },
             dataTex: {
                 location: gl.getUniformLocation(shaderProgram, 'dataTex'),

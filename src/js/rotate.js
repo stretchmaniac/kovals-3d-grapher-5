@@ -65,11 +65,9 @@ function rotateInit(){
     canvas.addEventListener("mousedown", e => {
         mouseDown = true;
         mousePos = [e.clientX, e.clientY];
-        globalRayCastProgram.uniforms.uMultisamples.value = 1;
     });
     canvas.addEventListener("mouseup", e => {
         mouseDown = false;
-        globalRayCastProgram.uniforms.uMultisamples.value = 4;
         refinementIter = 0;
         window.requestAnimationFrame(renderRayCast);
     });
