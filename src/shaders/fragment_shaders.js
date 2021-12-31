@@ -396,6 +396,9 @@ let voxelInit_frag = '';
 let voxelAdj_frag = '';
 let framebuffer_copy_frag = '';
 let raycast_frag = '';
+let raycast_max_steps = '300';
+let denseVoxelInitRandomSamples = 50;
+let userSuppliedNormalFunc = '';
 function setFragShaders(){
     denseVoxelInit_frag = 
     `#version 300 es
@@ -485,6 +488,48 @@ function setFragShaders(){
                     return false;
                 }
             }
+        }
+
+        // check quasi-random positions within the voxel 
+        float x = .12399;
+        float y = .65423;
+        float z = .97543;
+
+        float sqrt2 = sqrt(2.0);
+        float sqrt3 = sqrt(3.0);
+        float sqrt5 = sqrt(5.0);
+
+        vec3 posPos = vec3(-2.0);
+        vec3 negPos = vec3(-2.0);
+
+        for(int s = 0; s < ` + denseVoxelInitRandomSamples + `; s++){
+            vec3 p = origin + x * xhat + y * yhat + z * zhat;
+            float v = evaluate(p);
+
+            if(v == 0.0){
+                return false;
+            } else if(v > 0.0 && posPos.x != -2.0){
+                posPos = p;
+            } else if(v < 0.0 && negPos.x != -2.0){
+                negPos = p;
+            }
+
+            if(posPos.x != -2.0 && negPos.x != -2.0){
+                // check interval
+                if(!intervalEmpty(posPos, negPos - posPos)){
+                    return false;
+                }
+
+                posPos = vec3(-2.0);
+                negPos = vec3(-2.0);
+            }
+
+            x += sqrt2;
+            y += sqrt3;
+            z += sqrt5;
+            x = mod(x, 1.0);
+            y = mod(y, 1.0);
+            z = mod(z, 1.0);
         }
         return true;
     }
@@ -741,7 +786,7 @@ function setFragShaders(){
     vec3 getNormal(vec3 pt, vec3 incomingRayOrigin, vec3 incomingRayDir);
     vec4 getIllumination(vec3 pt, vec3 normal, int seed);
 
-    ` + evalFunc + colorFunc + rayIntersectBounds + voxCoordToTexCoord + getOctantValue + voxPtToFloatPt + 
+    ` + evalFunc + '\n' + colorFunc + rayIntersectBounds + voxCoordToTexCoord + getOctantValue + voxPtToFloatPt + 
     floatPtToVoxPt + floatPtToDenseVoxPt + denseVoxToPix + denseVoxPtToFloatPt + rand + getPerp +
     halfSphereSampling + lowDiscrepancySquare + raytrace_src_diffuse +`
 
@@ -858,7 +903,7 @@ function setFragShaders(){
         return boundaryPt;
     }
 
-    vec3 getNormal(vec3 pt, vec3 incomingRayOrigin, vec3 incomingRayDir){
+    vec3 getNormalDefault(vec3 pt, vec3 incomingRayOrigin, vec3 incomingRayDir){
         // The surface may not have a normal at the point.
         // What we are really looking for is a direction which points (locally) away from 
         // the surface. 
@@ -954,6 +999,7 @@ function setFragShaders(){
 
         return n;
     }
+    ` + userSuppliedNormalFunc + `\n
 
     vec4 getIllumination(vec3 pt, vec3 normal, int seed){
         vec3 b1 = getPerp(normal);
@@ -1206,7 +1252,7 @@ function setFragShaders(){
         }
 
         // now continue with regularly scheduled program
-        for(int step = 0; step < 300; step++){
+        for(int step = 0; step < ` + raycast_max_steps + `; step++){
             // check that we're still in bounds 
             if(step > maxIter){
                 return rayOrigin + vec3(5.0);

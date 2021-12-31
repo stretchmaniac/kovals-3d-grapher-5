@@ -16,8 +16,18 @@ let hasQueuedFrame = false;
 let refinementIter = 0;
 let renderingPaused = false;
 const maxRefinement = 1000000;
+let currentError = null;
+let currentErrorSource = null;
+const lightData = {
+    fLightPos: null,
+    fLightIntensity: null,
+    bLightPos: null,
+    bLightIntensity: null,
+    sLightPos: null,
+    sLightIntensity: null
+};
 
-function initWebGL(){
+async function initWebGL(){
     // clear the canvas and init webgl 
     const canvasContainer = document.getElementById('canvas-container');
     const canvas = document.getElementById('plot_canvas');
@@ -30,16 +40,26 @@ function initWebGL(){
     canvas.width = mainCanvasWidth;
     canvas.height = mainCanvasHeight;
 
+    await emitWaitingMessage('Acquiring webgl2 context', 0);
+
     const gl = canvas.getContext('webgl2');
     console.log('webgl2 context acquired.');
 
     // Set clear color to white, fully opaque
+    await emitWaitingMessage('Clearing canvas', .1);
+
     gl.clearColor(1.0, 1.0, 1.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.finish();
 
     const overallIntensity = 500;
 
+    await emitWaitingMessage('Compiling ray cast shaders', .2);
+
     const shaderProgram = loadAndLinkGenericShader(gl, raycast_vert, raycast_frag);
+    if(!shaderProgram){
+        return;
+    }
     const rayCastProgram = {
         program: shaderProgram,
         uniforms: {
@@ -61,27 +81,27 @@ function initWebGL(){
             },
             uFrontLightPos: {
                 location: gl.getUniformLocation(shaderProgram, 'uFrontLightPos'),
-                value: null
+                value: lightData.fLightPos
             },
             uBackLightPos: {
                 location: gl.getUniformLocation(shaderProgram, 'uBackLightPos'),
-                value: null
+                value: lightData.bLightPos
             },
             uSideLightPos: {
                 location: gl.getUniformLocation(shaderProgram, 'uSideLightPos'),
-                value: null
+                value: lightData.sLightPos
             },
             uFrontLightIntensity: {
                 location: gl.getUniformLocation(shaderProgram, 'uFrontLightIntensity'),
-                value: [overallIntensity, overallIntensity, overallIntensity]
+                value: lightData.fLightIntensity
             },
             uBackLightIntensity: {
                 location: gl.getUniformLocation(shaderProgram, 'uBackLightIntensity'),
-                value: [.4 * overallIntensity, .4 * overallIntensity, .4 * overallIntensity]
+                value: lightData.bLightIntensity
             },
             uSideLightIntensity: {
                 location: gl.getUniformLocation(shaderProgram, 'uSideLightIntensity'),
-                value: [0.8 * overallIntensity, .8 * overallIntensity, .8 * overallIntensity]
+                value: lightData.sLightIntensity
             },
             dataTex: {
                 location: gl.getUniformLocation(shaderProgram, 'dataTex'),
@@ -114,6 +134,8 @@ function initWebGL(){
     console.log('\tray cast program linked.');
     globalGL = gl;
     globalRayCastProgram = rayCastProgram;
+
+    await emitWaitingMessage('Compiling voxel shaders', .4);
 
     const voxelInitProgram = loadAndLinkGenericShader(gl, passthrough_vert, voxelInit_frag);
     globalOuterVoxelConstrProgram = {
@@ -163,6 +185,8 @@ function initWebGL(){
         }
     }
 
+    await emitWaitingMessage('Compiling extra shaders', .6);
+
     const fbDraw = loadAndLinkGenericShader(gl, passthrough_with_pix_vert, framebuffer_copy_frag);
     framebufferDrawProgram = {
         program: fbDraw,
@@ -183,8 +207,29 @@ function initWebGL(){
     bindFullScreenQuad(gl);
 
     const startTime = Date.now();
+    await emitWaitingMessage('Initializing voxel textures', .8);
+
     initVoxelTextures(gl);
     console.log('Texture init time: ' + (Date.now() - startTime));
+
+    closeWaitingMessage();
+}
+
+// progress is float [0,1]
+async function emitWaitingMessage(html, progress){
+    document.getElementById('canvas-message').style.display = 'block';
+    const messageDiv = document.getElementById('canvas-progress-description');
+    const messageProgress = document.getElementById('canvas-progress-value');
+
+    messageDiv.innerHTML = html;
+    messageProgress.value = '' + Math.floor(progress * 100);
+
+    // sleep so the message shows up...
+    await new Promise(r => setTimeout(r, 300));
+}
+
+function closeWaitingMessage(){
+    document.getElementById('canvas-message').style.display = 'none';
 }
 
 const { mat4, mat3, vec3, vec4 } = glMatrix;
@@ -267,20 +312,17 @@ function renderRayCast(timestep){
     const uMultisamples = rayCastProgram.uniforms.uMultisamples;
     gl.uniform1f(uMultisamples.location, uMultisamples.value);
 
-    // camera is at (10, 0, 0), our other lights will be:
-    //   front: (10, 2, 1)
-    //   back: (-10, 3, 0)
-    //   side: (0, 10, 2)
-    const frontPos = add(add(mult(xhat, 10), mult(yhat, 2)), mult(zhat, 1));
-    const backPos = add(add(mult(xhat, -10), mult(yhat, 3)), mult(zhat, 0));
-    const sidePos = add(add(mult(xhat, 0), mult(yhat, 10)), mult(zhat, 2));
-    
+    // camera is at (10, 0, 0)
     const uFLP = rayCastProgram.uniforms.uFrontLightPos;
+    const frontPos = add(add(mult(xhat, uFLP.value[0]), mult(yhat, uFLP.value[1])), mult(zhat, uFLP.value[2]));
+    const uBLP = rayCastProgram.uniforms.uBackLightPos;
+    const backPos = add(add(mult(xhat, uBLP.value[0]), mult(yhat, uBLP.value[1])), mult(zhat, uBLP.value[2]));
+    const uSLP = rayCastProgram.uniforms.uSideLightPos;
+    const sidePos = add(add(mult(xhat, uSLP.value[0]), mult(yhat, uSLP.value[1])), mult(zhat, uSLP.value[2]));
+    
     gl.uniform3f(uFLP.location, frontPos[0], frontPos[1], frontPos[2]);
-    const uFBP = rayCastProgram.uniforms.uBackLightPos;
-    gl.uniform3f(uFBP.location, backPos[0], backPos[1], backPos[2]);
-    const uFSP = rayCastProgram.uniforms.uSideLightPos;
-    gl.uniform3f(uFSP.location, sidePos[0], sidePos[1], sidePos[2]);
+    gl.uniform3f(uBLP.location, backPos[0], backPos[1], backPos[2]);
+    gl.uniform3f(uSLP.location, sidePos[0], sidePos[1], sidePos[2]);
 
     const uFLI = rayCastProgram.uniforms.uFrontLightIntensity;
     gl.uniform3f(uFLI.location, uFLI.value[0], uFLI.value[1], uFLI.value[2]);
@@ -512,6 +554,10 @@ function loadAndLinkGenericShader(gl, vertSrc, fragSrc){
     const vertShader = loadShader(gl, gl.VERTEX_SHADER, vertSrc);
     const fragShader = loadShader(gl, gl.FRAGMENT_SHADER, fragSrc);
 
+    if(!vertShader || !fragShader){
+        return null;
+    }
+
     const shaderProgram = gl.createProgram();
     gl.attachShader(shaderProgram, vertShader);
     gl.attachShader(shaderProgram, fragShader);
@@ -532,7 +578,12 @@ function loadShader(gl, type, source) {
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
         let c = 1;
         console.log(source.split('\n').map(x => (c++) + ': ' + x).join('\n'));
-        console.log('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader));
+        const info = gl.getShaderInfoLog(shader);
+        console.log('An error occurred compiling the shaders: ' + info);
+
+        currentError = info;
+        currentErrorSource = source;
+
         gl.deleteShader(shader);
 
         return null;

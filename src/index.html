@@ -14,18 +14,24 @@
 <body onload="rotateInit(); UIInit();">
     <div id='main-container'>
         <div id='ui-bar'>
-            GLSL evaluation function: <br>
-            <textarea id='evaluation-input'>float evaluate(vec3 p){
+            Plot evaluation function: <br>
+            <div id='evaluation-input'>// A point p lies in the plotted set if evaluate(p) = 0. 
+// You write the evaluate function!
+// This is GLSL v330. For basic usages, see https://en.wikibooks.org/wiki/GLSL_Programming/Vector_and_Matrix_Operations
+float evaluate(vec3 p){
     float x = p.x;
     float y = p.y;
     float z = p.z;
     
     return 0.8 - length(p) -1.0 + abs(p.x) + abs(p.y) + abs(p.z);
-}</textarea> <br>
+}</div> <br>
             <select id='example-plot-select' onchange='exampleSelected();'>
                 <option value='1'>Example 1</option>
                 <option value='2'>Example 2</option>
                 <option value='3'>Example 3</option>
+                <option value='thread'>Very Thin Thread</option>
+                <option value='cylindrical'>Cylindrical Example</option>
+                <option value='spherical'>Spherical Example</option>
                 <option value='menger'>Menger Sponge</option>
                 <option value='multiple-surface'>Multiple Surfaces</option>
                 <option value='moms-favorite'>Mom's Favorite</option>
@@ -39,7 +45,7 @@
             </div>
             <br>
             Color evaluation function <br>
-            <textarea id='color-input'>vec3 getColor(vec3 p, vec3 inDir){
+            <div id='color-input'>vec3 getColor(vec3 p, vec3 inDir){
     // the width of a voxel
     float eps = 0.002;
     bool insideSurface = evaluate(p - eps * inDir) &lt; 0.0;
@@ -51,12 +57,54 @@
         // white 
         return vec3(1.0, 1.0, 1.0);
     }
-}</textarea>
+}</div> <br>
+        <button id='advanced-settings-button' onclick='toggleSettings();'>Show Advanced Settings</button>
+        <div id='advanced-settings' style='display:none'>
+            <div class='settings-row'>
+                <label for='settings-max-step-count'>Max ray step count </label><input id='settings-max-step-count' value='300'>
+            </div>
+            <div class='settings-row'>
+                <label for='settings-spv'>Extra sample points per voxel </label><input id='settings-spv' value='10'> <br>
+                <span style='font-size: 11px'>Settings this above 50 or so may result in driver errors for some GPUs.</span>
+            </div>
+            <div class='settings-row'>
+                Normal override <br>
+                <div id='normal-override-input'>vec3 getNormal(vec3 pt, vec3 incomingRayOrigin, vec3 incomingRayDir){
+    return getNormalDefault(pt, incomingRayOrigin, incomingRayDir);
+}</div>
+            </div>
+            <div class='settings-row light-spec'>
+                Front light: <br>
+                <label for='flight-intensity'>intensity </label><input id='flight-intensity' value='500'> <br>
+                <label for='flight-color'>color </label><input id='flight-color' value='rgb(1, 1, 1)'> <br>
+                <label for='flight-position'>position* </label><input id='flight-position' value='(10, 2, 1)'>
+            </div>
+            <div class='settings-row light-spec'>
+                Top light: <br>
+                <label for='slight-intensity'>intensity </label><input id='slight-intensity' value='400'> <br>
+                <label for='slight-color'>color </label><input id='slight-color' value='rgb(1, 1, 1)'> <br>
+                <label for='slight-position'>position* </label><input id='slight-position' value='(0, 10, 2)'>
+            </div>
+            <div class='settings-row light-spec'>
+                Back light: <br>
+                <label for='blight-intensity'>intensity </label><input id='blight-intensity' value='100'> <br>
+                <label for='blight-color'>color </label><input id='blight-color' value='rgb(1, 1, 1)'> <br>
+                <label for='blight-position'>position* </label><input id='blight-position' value='(-10, 3, 0)'>
+            </div>
+            <span style='font-size: 11px'>lights all have radius 1/2.</span> <br>
+            <span style='font-size: 11px'>*lights must be outside the sphere centered at the origin with radius 1/2 + sqrt(3)/2.</span>
+        </div>
         </div>
         <div id='canvas-container'>
             <canvas id="plot_canvas"></canvas>
+            <div id='canvas-message'>
+                <div id='canvas-progress-description'>Waiting...</div>
+                <progress id='canvas-progress-value' max='100' value='50'></progress>
+            </div>
         </div>
     </div>
+    <script src="lib/ace.js" type="text/javascript" charset="utf-8"></script>
+    <script src="lib/mode-glsl.js" type="text/javascript" charset="utf-8"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/3.4.2/gl-matrix-min.js" integrity="sha512-eV9ExyTa3b+YHr99IBTYpwk4wbgDMDlfW8uTxhywO8dWb810fGUSKDgHhEv1fAqmJT4jyYnt1iWWMW4FRxeQOQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="js/geo.js"></script>
     <script src="shaders/vertex_shaders.js"></script>

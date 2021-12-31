@@ -19,14 +19,17 @@ body {
 #ui-bar {
     height: 100%;
     padding: 9px;
-    background-color: rgb(241, 241, 241);
+    background-color: rgb(227, 227, 227);
     overflow-y: auto;
 }
 
-#evaluation-input, #color-input {
+#evaluation-input, #color-input, #normal-override-input {
     margin: 5px;
     height: 400px;
     width: 500px;
+    resize: none;
+
+    font-family: monospace;
 }
 
 #color-input {
@@ -36,6 +39,7 @@ body {
 #canvas-container {
     flex-grow: 1;
     height: 100%;
+    position: relative;
 }
 
 #plot-button{
@@ -44,6 +48,38 @@ body {
     padding: 5px;
 }
 
+.plot-error {
+    background-color: red;
+}
+
 #stats-container {
     font-size: 11px;
+}
+
+#canvas-message {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    display: none;
+    font-size: 14px;
+}
+
+#advanced-settings {
+    padding-bottom: 5px;
+}
+
+.settings-row {
+    padding: 5px;
+}
+
+#normal-override-input {
+    height: 250px;
+}
+
+.light-spec {
+    padding: 2px;
+}
+
+.light-spec label {
+    margin-left: 30px;
 }
