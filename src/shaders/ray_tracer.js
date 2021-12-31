@@ -91,9 +91,11 @@ vec3 getLightContribution(vec3 pt, vec3 ptRaw, vec3 normal, int seed){
     // use offset to real point for dot product attenuation 
     float dotAtten = max(dot(normalize(lightPos - ptRaw), normal), 0.0);
     float dist = dot(lightPos - ptRaw, lightPos - ptRaw);
-    return lightVisible ? 
-        (1.0 / lightProbability) * dotAtten * vec3(getLightRadiance(lightIndex)) / dist
-        : vec3(0.0);
+
+    vec3 rad = getLightRadiance(lightIndex);
+    float pDistAtten = max(0.0, 1.0 / (lightProbability * dist));
+
+    return lightVisible ?  pDistAtten * dotAtten * rad : vec3(0.0);
 }
 
 vec4 getIlluminationRayTrace(vec3 rayOrigin, vec3 normal, vec3 inDir, int seed){
