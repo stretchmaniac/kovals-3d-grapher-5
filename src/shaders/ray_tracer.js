@@ -98,71 +98,67 @@ vec3 getLightContribution(vec3 pt, vec3 ptRaw, vec3 normal, int seed){
     return lightVisible ?  pDistAtten * dotAtten * rad : vec3(0.0);
 }
 
-vec4 getIlluminationRayTrace(vec3 rayOrigin, vec3 normal, vec3 inDir, int seed){
-    int numSamples = 1;
-    vec3 total = vec3(0.0);
-    for(int nSample = 0; nSample < numSamples; nSample++){
-        // We're doing diffuse, 3 bounce path tracing with a single light source (sphere)
-        // render equation has three terms: cosine term, bsdf term, incoming radius term.
-        // L_out(w) = int_v bsdf(v -> w)*L_in(v)*(v.n) dv
+vec4 getIlluminationRayTrace(vec3 rayOrigin, vec3 normal, vec3 inDir, int seed, bool fast){
+    // We're doing diffuse, 3 bounce path tracing with a single light source (sphere)
+    // render equation has three terms: cosine term, bsdf term, incoming radius term.
+    // L_out(w) = int_v bsdf(v -> w)*L_in(v)*(v.n) dv
 
-        // separate this into light coming from the light sources vs coming from other surfaces:
-        // L_out(w) = 
-        //    int_{v st line connects light src and point} bsdf(v -> w)L_in(v)*v.n dv +
-        //    int_{v st line doesn't connect light source and pt} bsdf(v -> w)L_in(v)*v.n dv
-        
-        // We integrate these separately through light sampling (the first integral) and sampling the dot product term 
-        // (second integral)
+    // separate this into light coming from the light sources vs coming from other surfaces:
+    // L_out(w) = 
+    //    int_{v st line connects light src and point} bsdf(v -> w)L_in(v)*v.n dv +
+    //    int_{v st line doesn't connect light source and pt} bsdf(v -> w)L_in(v)*v.n dv
+    
+    // We integrate these separately through light sampling (the first integral) and sampling the dot product term 
+    // (second integral)
 
-        // the first integral, we sample v from points on a light source. With three light sources, the probably distribution 
-        // (for importance sampling) is 
-        //   P(v \in light1) = intensity_light1 / totalIntensity
-        //   P(v \in light2) = intensity_light2 / totalIntensity
-        //   P(v \in light3) = intensity_light3 / totalIntensity
-        // with uniform distribution inside each light source. Lights pointing away from the normal will have intensity equal to zero.
+    // the first integral, we sample v from points on a light source. With three light sources, the probably distribution 
+    // (for importance sampling) is 
+    //   P(v \in light1) = intensity_light1 / totalIntensity
+    //   P(v \in light2) = intensity_light2 / totalIntensity
+    //   P(v \in light3) = intensity_light3 / totalIntensity
+    // with uniform distribution inside each light source. Lights pointing away from the normal will have intensity equal to zero.
 
-        // For the second integral, we sample the v.n term
+    // For the second integral, we sample the v.n term
 
-        // in practice, this means we need a path with 2 additional nodes in it
-        int totalSampleCount = 8;
-        int startSeed = seed * totalSampleCount;        
+    // in practice, this means we need a path with 2 additional nodes in it
+    int totalSampleCount = 8;
+    int startSeed = seed * totalSampleCount;        
 
-        float denseVoxWidth = 2.0 / 1024.0;
-        float defaultOffset = 4.0 * denseVoxWidth;
+    float denseVoxWidth = 2.0 / 1024.0;
+    float defaultOffset = 4.0 * denseVoxWidth;
 
-        vec3 dir1 = getNewDir(startSeed++, normal);
-        vec3 pt1Raw = rayOrigin;
-        vec3 pt1 = rayOrigin + normal * defaultOffset;
-        vec3 lightContribution1 = getLightContribution(pt1, pt1Raw, normal, startSeed);
+    vec3 dir1 = getNewDir(startSeed++, normal);
+    vec3 pt1Raw = rayOrigin;
+    vec3 pt1 = rayOrigin + normal * defaultOffset;
+    vec3 lightContribution1 = getLightContribution(pt1, pt1Raw, normal, startSeed);
+    startSeed += 2;
+    vec3 neighborContribution1 = vec3(0.0);
+
+    vec3 pt2Raw = getAccRayCastPt(pt1, dir1);
+    vec3 pt2 = vec3(pt2Raw.xyz);
+    if(pt2.x != -2.0 && !fast){
+        vec3 normal2 = getNormal(pt2Raw, pt1, dir1);
+        pt2 += normal2 * defaultOffset;
+        vec3 dir2 = getNewDir(startSeed++, normal2);
+        vec3 lightContribution2 = getLightContribution(pt2, pt2Raw, normal2, startSeed);
         startSeed += 2;
-        vec3 neighborContribution1 = vec3(0.0);
+        vec3 neighborContribution2 = vec3(0.0);
 
-        vec3 pt2Raw = getAccRayCastPt(pt1, dir1);
-        vec3 pt2 = vec3(pt2Raw.xyz);
-        if(pt2.x != -2.0){
-            vec3 normal2 = getNormal(pt2Raw, pt1, dir1);
-            pt2 += normal2 * defaultOffset;
-            vec3 dir2 = getNewDir(startSeed++, normal2);
-            vec3 lightContribution2 = getLightContribution(pt2, pt2Raw, normal2, startSeed);
+        vec3 pt3Raw = getAccRayCastPt(pt2, dir2);
+        vec3 pt3 = vec3(pt3Raw.xyz);
+        if(pt3.x != -2.0){
+            vec3 normal3 = getNormal(pt3Raw, pt2, dir2);
+            pt3 += normal3 * defaultOffset;
+            vec3 totalRadiance = getLightContribution(pt3, pt3Raw, normal3, startSeed);
             startSeed += 2;
-            vec3 neighborContribution2 = vec3(0.0);
 
-            vec3 pt3Raw = getAccRayCastPt(pt2, dir2);
-            vec3 pt3 = vec3(pt3Raw.xyz);
-            if(pt3.x != -2.0){
-                vec3 normal3 = getNormal(pt3Raw, pt2, dir2);
-                pt3 += normal3 * defaultOffset;
-                vec3 totalRadiance = getLightContribution(pt3, pt3Raw, normal3, startSeed);
-                startSeed += 2;
-
-                neighborContribution2 = totalRadiance * getColor(pt3Raw, dir2);
-            }
-
-            neighborContribution1 = (lightContribution2 + neighborContribution2) * getColor(pt2Raw, dir1);
+            neighborContribution2 = totalRadiance * getColor(pt3Raw, dir2);
         }
-        total += (lightContribution1 + neighborContribution1) * getColor(pt1Raw, inDir);
+
+        neighborContribution1 = (lightContribution2 + neighborContribution2) * getColor(pt2Raw, dir1);
     }
-    total /= float(numSamples);
+
+    vec3 total = (lightContribution1 + neighborContribution1) * getColor(pt1Raw, inDir);
     return vec4(total, 1.0);
 }
 `

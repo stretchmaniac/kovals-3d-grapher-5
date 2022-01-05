@@ -177,6 +177,18 @@ function exampleSelected(){
     vec3 target = outer*0.5 + 0.3 * cos(5.0 * theta)*outer + 0.3 * vec3(0.0,0.0,sin(5.0 * theta));
     return distance(p, target) - 0.1;
 }`;
+        colorValue = 
+`vec3 getColor(vec3 p, vec3 inDir){
+    // Mom's favorite color is green
+    vec3 g1 = vec3(54.0, 171.0, 0.0) / 255.0;
+    vec3 g2 = vec3(0.0, 191.0, 128.0) / 255.0;
+    vec3 g3 = vec3(2.0, 128.0, 0.0) / 255.0;
+    
+    vec3 v = abs(p);
+    v /= (v.x + v.y + v.z);
+    return g1 * v.x + g2 * v.y + g3 * v.z;
+}`;
+
     } else if(value === 'menger'){
         evalValue = 
 `float evaluate(vec3 p){
@@ -365,6 +377,27 @@ float evaluate(vec3 p){
     
     float v = sqrt(clamp(lineDist, 0.0, 1.0));
     return vec3(1.0, v, v);
+}`;
+    } else if(value === 'klein-bottle'){
+        evalValue = 
+`float evaluate(vec3 p){
+    float x = 5.0 * p.x;
+    float y = 5.0 * p.y;
+    float z = 5.0 * p.z;
+    
+    float aPlus = x*x + y*y + z*z + 2.0*y - 1.0;
+    float aMin = x*x + y*y + z*z - 2.0*y - 1.0;
+    
+    return aPlus * (aMin*aMin - 8.0 * z*z) + 16.0*x*z*aMin;
+}`;
+    } else if(value === 'discontinuous'){
+        evalValue = 
+`float evaluate(vec3 p){
+    float x = 5.0 * p.x;
+    float y = 5.0 * p.y;
+    float z = 5.0 * p.z;
+    
+    return z*z - x * floor(y*y + x*x) / 25.0;
 }`;
     }
 

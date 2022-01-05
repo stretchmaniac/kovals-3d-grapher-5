@@ -451,12 +451,16 @@ function setFragShaders(){
             return true;
         }
 
+        // 2^-10 is about .001, which is how much we can hope to shrink the 
+        // deficit by bisection 10 times. We increase this to .01 to be safe
+        float testEps = (abs(minV) + abs(maxV)) * 0.01;
+
         // binary search in interval 
         float vMultiplier = minV > 0.0 ? -1.0 : 1.0;
         minV *= vMultiplier;
         maxV *= vMultiplier;
         for(int i = 0; i < 10; i++){
-            if(minV > -0.0001 || maxV < 0.0001){
+            if(minV > -testEps || maxV < testEps){
                 return false;
             }
             float midT = (minT + maxT) / 2.0;
@@ -823,7 +827,7 @@ function setFragShaders(){
             }
             else {
                 vec3 normal = getNormal(rayIntPt, origin, dir);
-                vec4 illumination = getIlluminationRayTrace(rayIntPt, normal, dir, pixelOffset + int(uMultisamples) * accumulationBufferCount + i);
+                vec4 illumination = getIlluminationRayTrace(rayIntPt, normal, dir, pixelOffset + int(uMultisamples) * accumulationBufferCount + i, accumulationBufferCount == 0);
 
                 color += illumination;
             }
