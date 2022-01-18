@@ -208,18 +208,15 @@ vec3 lowDiscrepancyHalfSphere(int seed){
     return vec3(x,y,z);
 }
 
-vec3 lowDiscrepancyHalfSphereCosineBiased(int seed){
+vec3 halfSphereCosineBiased(int seed){
     // sample unit disk and project upward
-    float sqrt2 = 1.41421356237;
-    float sqrt3 = 1.73205080757;
-    float sqrt5 = 2.2360679775;
     float pi2 = 6.28318530718;
-    float r = sqrt(mod(sqrt5 + 2.0 * float(seed) * sqrt2, 1.0));
-    float theta = mod(sqrt5 + 2.0 * float(seed) * sqrt3, pi2);
+    float r = rand(float(seed));
+    float theta = rand(float(seed + 1)) * pi2;
     
     float x = r * cos(theta);
     float y = r * sin(theta);
-    float z = sqrt(1.0- x*x - y*y);
+    float z = sqrt(1.0 - r*r);
     return vec3(x,y,z);
 }
 `
@@ -705,7 +702,7 @@ function setFragShaders(){
             uintBitsToFloat(raw.x),
             uintBitsToFloat(raw.y),
             uintBitsToFloat(raw.z),
-            uintBitsToFloat(raw.w)
+            1.0
         );
 
         outColor = mapToRGB(unmapped);
@@ -785,7 +782,6 @@ function setFragShaders(){
     const vec3 VIEW_BOUNDS_MAX = vec3(1.0, 1.0, 1.0);
 
     vec3 getAccRayCastPt(vec3 rayOrigin, vec3 rayDir);
-    vec3 getAccRayCastPt(vec3 rayOrigin, vec3 rayDir, int maxIter);
     vec3 getAccRayCastPtRough(vec3 rayOrigin, vec3 rayDir);
     vec3 getNormal(vec3 pt, vec3 incomingRayOrigin, vec3 incomingRayDir);
     vec4 getIllumination(vec3 pt, vec3 normal, int seed);
@@ -797,14 +793,32 @@ function setFragShaders(){
     void main(){
         // get previous pixel value, if applicable 
         vec4 prevPixValue = vec4(0.0);
+        uint pixSampleCount = 0u;
+        float pixM2 = 0.0;
         if(accumulationBufferCount > 0){
             uvec4 uPrevPixValue = texture(accumulationBuffer, 0.5*(pixPos + vec2(1.0)), 0.0);
             prevPixValue = vec4(
                 uintBitsToFloat(uPrevPixValue.x),
                 uintBitsToFloat(uPrevPixValue.y),
                 uintBitsToFloat(uPrevPixValue.z),
-                uintBitsToFloat(uPrevPixValue.w)
+                1.0
             );
+            pixSampleCount = (uPrevPixValue.w & 65535u); // 2^16 - 1
+            // we'll assume that the first 100(ish) samples are sufficient to get a decent idea of the variance...
+            pixM2 = float(((uPrevPixValue.w >> 16u) & 65535u)) / 10000.0;
+
+            float variance = pixM2 / float(pixSampleCount);
+            if(accumulationBufferCount > 10){
+                // take a chance to skip this pixel 
+                float r = rand(pixPos.x + 5.0 * (pixPos.y + 1.0) + float(accumulationBufferCount));
+                float v = sqrt(variance);
+                float target = 0.01;
+                if(v < target && r > 0.2){
+                    // skip this pixel 
+                    outColor = uPrevPixValue;
+                    return;
+                }
+            }
         }
 
         vec4 color = vec4(0.0, 0.0, 0.0, 0.0);
@@ -835,14 +849,19 @@ function setFragShaders(){
 
         vec4 iterColor = color / uMultisamples;
 
-
         // average with previous pixel value 
-        vec4 outColorF = prevPixValue + (iterColor - prevPixValue) / float(accumulationBufferCount + 1);
+        vec4 outColorF = prevPixValue + (iterColor - prevPixValue) / float(pixSampleCount + 1u);
+        float newM2 = 0.0;
+        if(accumulationBufferCount > 0){
+           newM2 = pixM2 + length(prevPixValue.xyz - iterColor.xyz) * length(outColorF.xyz - iterColor.xyz);
+        }
+        uint encodedM2 = min(uint(newM2 * 10000.0), 65535u);
+        uint newSamples = min(pixSampleCount + 1u, 65535u);
         outColor = uvec4(
             floatBitsToUint(outColorF.x),
             floatBitsToUint(outColorF.y),
             floatBitsToUint(outColorF.z),
-            floatBitsToUint(outColorF.w)
+            newSamples + (encodedM2 << 16u)
         );
     }
 
@@ -1221,12 +1240,8 @@ function setFragShaders(){
         return vec3(-2.0);
     }
 
-    vec3 getAccRayCastPt(vec3 rayOrigin, vec3 rayDir){
-        return getAccRayCastPt(rayOrigin, rayDir, 300);
-    }
-
     // if rayOrigin lies within a voxel, the ray will travel through that voxel unimpeded regardless of occlusion
-    vec3 getAccRayCastPt(vec3 rayOrigin, vec3 rayDir, int maxIter) {
+    vec3 getAccRayCastPt(vec3 rayOrigin, vec3 rayDir) {
         vec3 rayDirInv = vec3(1.0 / rayDir.x, 1.0 / rayDir.y, 1.0 / rayDir.z);
         float voxDenseWidth = 0.001953125; // 2 / 1024
         float voxWidth = voxDenseWidth * 8.0;
@@ -1258,9 +1273,6 @@ function setFragShaders(){
         // now continue with regularly scheduled program
         for(int step = 0; step < ` + raycast_max_steps + `; step++){
             // check that we're still in bounds 
-            if(step > maxIter){
-                return rayOrigin + vec3(5.0);
-            }
             if(currentVox.x < 0 || currentVox.y < 0 || currentVox.z < 0 || currentVox.x > 1023 || currentVox.y > 1023 || currentVox.z > 1023){
                 return vec3(-2.0);
             }
@@ -1429,7 +1441,7 @@ function setFragShaders(){
             }
         }
 
-        return vec3(0.0);
+        return vec3(-2.0);
     }
     `;
 }

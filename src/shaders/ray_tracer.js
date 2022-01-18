@@ -1,6 +1,6 @@
 raytrace_src_diffuse = `
 vec3 getNewDir(int seed, vec3 normal){
-    vec3 dir1B = lowDiscrepancyHalfSphereCosineBiased(seed);
+    vec3 dir1B = halfSphereCosineBiased(seed);
     vec3 b11 = getPerp(normal);
     vec3 b12 = cross(normal, b11);
     return b11 * dir1B.x + b12 * dir1B.y + normal * dir1B.z;
