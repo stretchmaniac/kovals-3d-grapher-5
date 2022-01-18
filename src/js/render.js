@@ -11,13 +11,13 @@ const voxelTexWidth = 1450;
 const denseVoxelTexWidth = voxelTexWidth * 2;
 let mainCanvasWidth = 0;
 let mainCanvasHeight = 0;
-let rendering = false;
-let hasQueuedFrame = false;
 let refinementIter = 0;
 let renderingPaused = false;
-const maxRefinement = 1000000;
+const maxRefinement = 100000;
 let currentError = null;
 let currentErrorSource = null;
+let renderLoopActive = false;
+let newFrameFlag = false;
 const lightData = {
     fLightPos: null,
     fLightIntensity: null,
@@ -232,9 +232,17 @@ function closeWaitingMessage(){
     document.getElementById('canvas-message').style.display = 'none';
 }
 
+function signalRender(){
+    if(!renderLoopActive){
+        renderLoopActive = true;
+        window.requestAnimationFrame(renderRayCast);
+    } else {
+        newFrameFlag = true;
+    }
+}
+
 const { mat4, mat3, vec3, vec4 } = glMatrix;
 function renderRayCast(timestep){
-    rendering = true;
     gl = globalGL;
     rayCastProgram = globalRayCastProgram;
     // do a ping-pong frame buffer switcheroo
@@ -340,7 +348,7 @@ function renderRayCast(timestep){
     gl.bindTexture(gl.TEXTURE_2D, voxelTexDense);
 
     const fbAsRef = rayCastProgram.fbs.fbASetToRender ? rayCastProgram.fbs.fbB : rayCastProgram.fbs.fbA;
-    const accumulationBufferCount = refinementIter >= maxRefinement ? 0 : refinementIter;
+    const accumulationBufferCount = refinementIter > maxRefinement ? 0 : refinementIter;
     gl.uniform1i(rayCastProgram.uniforms.accumulationBufferCount.location, accumulationBufferCount);
     gl.uniform1i(rayCastProgram.uniforms.accumulationBuffer.location, 2);
     gl.activeTexture(gl.TEXTURE0 + 2);
@@ -372,16 +380,16 @@ function renderRayCast(timestep){
     rayCastProgram.fbs.fbASetToRender = !rayCastProgram.fbs.fbASetToRender;
     document.getElementById('ssp-stat').innerText = 'samples per pixel: ' + ((accumulationBufferCount + 1) * uMultisamples.value);
 
-    rendering = false;
-
     if(refinementIter < maxRefinement && !renderingPaused){
-        refinementIter++;
         if(refinementIter < maxRefinement){
+            refinementIter++;
             window.requestAnimationFrame(renderRayCast);
         }
-    } else if(hasQueuedFrame){
-        hasQueuedFrame = false;
+    } else if(newFrameFlag && refinementIter === maxRefinement + 1){
+        newFrameFlag = false;
         window.requestAnimationFrame(renderRayCast);
+    } else {
+        renderLoopActive = false;
     }
 }
 

@@ -69,7 +69,7 @@ function rotateInit(){
     canvas.addEventListener("mouseup", e => {
         mouseDown = false;
         refinementIter = 0;
-        window.requestAnimationFrame(renderRayCast);
+        signalRender();
     });
     canvas.addEventListener("mousemove", e => {
         if(mouseDown){
@@ -79,11 +79,7 @@ function rotateInit(){
             refinementIter = maxRefinement + 1;
             rotateDxDy(-dx, -dy);
             mousePos = newMousePos;
-            if(!hasQueuedFrame && !rendering){
-                window.requestAnimationFrame(renderRayCast);
-            } else if(!hasQueuedFrame && rendering){
-                hasQueuedFrame = true;
-            }            
+            signalRender();            
         }
     });
 }
