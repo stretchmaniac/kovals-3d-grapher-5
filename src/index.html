@@ -14,6 +14,9 @@
 <body onload="rotateInit(); UIInit();" id='body'>
     <div id='main-container'>
         <div id='ui-bar'>
+            <span id='title'>Koval's 3D Grapher</span><span id='title-version'> v 5.0</span>
+            <br>
+            <br>
             Plot evaluation function: <br>
             <div id='evaluation-input'>// A point p lies in the plotted set if evaluate(p) = 0. 
 // You write the evaluate function!
@@ -42,11 +45,13 @@ float evaluate(vec3 p){
             <button id='pause-plotting' onclick='pauseClicked();'>Pause</button>
             <button id='resume-plotting' onclick='resumeClicked();'>Resume</button>
             <br>
-            <span style='font-size: 12px'>Toggle plot pause/resume hotkey: p</span>
-            <br>
             <div id='stats-container'>
                 <div id='ssp-stat'></div>
             </div>
+            <span style='font-size: 12px'>Toggle plot pause/resume hotkey: p</span>
+            <br>
+            <a href="javascript: alert('This application runs on your GPU through webGL2. If your graphics card is not up to the task, or your function is complicated, plotting may briefly (or not so briefly!) freeze your entire computer, including your mouse. In the event that this happens, press the p key ONCE and go make yourself a cup of coffee. Maybe it will be un-frozen by the time you get back. Please also note that your specific graphics driver may impact performance substantially, especially shader compile times.');" style='font-size: 12px'>Will this crash my computer?</a>
+            <br>
             <br>
             Color evaluation function <br>
             <div id='color-input'>vec3 getColor(vec3 p, vec3 inDir){
@@ -69,7 +74,7 @@ float evaluate(vec3 p){
             </div>
             <div class='settings-row'>
                 <label for='settings-spv'>Extra sample points per voxel </label><input id='settings-spv' value='10'> <br>
-                <span style='font-size: 11px'>Settings this above 50 or so may result in driver errors for some GPUs.</span>
+                <span style='font-size: 11px'>Setting this above 50 or so may result in driver errors for some GPUs.</span>
             </div>
             <div class='settings-row'>
                 Normal override <br>
