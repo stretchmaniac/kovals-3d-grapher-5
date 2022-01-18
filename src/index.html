@@ -11,13 +11,13 @@
     <link rel="stylesheet" href="css/main.css">
 </head>
 
-<body onload="rotateInit(); UIInit();">
+<body onload="rotateInit(); UIInit();" id='body'>
     <div id='main-container'>
         <div id='ui-bar'>
             Plot evaluation function: <br>
             <div id='evaluation-input'>// A point p lies in the plotted set if evaluate(p) = 0. 
 // You write the evaluate function!
-// This is GLSL v330. For basic usages, see https://en.wikibooks.org/wiki/GLSL_Programming/Vector_and_Matrix_Operations
+// This is GLSL v330. For basic usage, see https://en.wikibooks.org/wiki/GLSL_Programming/Vector_and_Matrix_Operations
 float evaluate(vec3 p){
     float x = p.x;
     float y = p.y;
@@ -29,7 +29,7 @@ float evaluate(vec3 p){
                 <option value='1'>Example 1</option>
                 <option value='2'>Example 2</option>
                 <option value='3'>Example 3</option>
-                <option value='thread'>Very Thin Thread</option>
+                <option value='thread'>Thin Example</option>
                 <option value='cylindrical'>Cylindrical Example</option>
                 <option value='spherical'>Spherical Example</option>
                 <option value='menger'>Menger Sponge</option>
@@ -39,8 +39,10 @@ float evaluate(vec3 p){
                 <option value='discontinuous'>Discontinuous Example</option>
             </select>
             <button id='plot-button' onclick='plotClicked();'>Plot</button>
-            <button id='pause-plotting' onclick='pauseClicked();'>Pause Plotting</button>
-            <button id='resume-plotting' onclick='resumeClicked();'>Resume Plotting</button>
+            <button id='pause-plotting' onclick='pauseClicked();'>Pause</button>
+            <button id='resume-plotting' onclick='resumeClicked();'>Resume</button>
+            <br>
+            <span style='font-size: 12px'>Toggle plot pause/resume hotkey: p</span>
             <br>
             <div id='stats-container'>
                 <div id='ssp-stat'></div>

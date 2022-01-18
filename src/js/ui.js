@@ -2,7 +2,7 @@ async function plotClicked(){
     // scrape info:
     evalFunc = evalEditor.getValue();
     colorFunc = colorEditor.getValue();
-    raycast_max_steps = parseFloat(document.getElementById('settings-max-step-count').value);
+    raycast_max_steps = document.getElementById('settings-max-step-count').value;
     denseVoxelInitRandomSamples = parseFloat(document.getElementById('settings-spv').value);
     userSuppliedNormalFunc = normalEditor.getValue();
 
@@ -48,8 +48,6 @@ async function plotClicked(){
     }
 
     resumeClicked();
-
-    window.requestAnimationFrame(renderRayCast);
 }
 
 function handleError(errorMsg, errorSource){
@@ -134,7 +132,7 @@ function pauseClicked(){
 
 function resumeClicked(){
     renderingPaused = false;
-    window.requestAnimationFrame(renderRayCast);
+    signalRender();
 }
 
 let evalEditor = null;
@@ -184,7 +182,7 @@ function exampleSelected(){
     vec3 g2 = vec3(0.0, 191.0, 128.0) / 255.0;
     vec3 g3 = vec3(2.0, 128.0, 0.0) / 255.0;
     
-    vec3 v = abs(p);
+    vec3 v = abs(p) + vec3(0.05);
     v /= (v.x + v.y + v.z);
     return g1 * v.x + g2 * v.y + g3 * v.z;
 }`;
@@ -403,7 +401,7 @@ float evaluate(vec3 p){
 
     evalValue = `// A point p lies in the plotted set if evaluate(p) = 0. 
 // You write the evaluate function!
-// This is GLSL v330. For basic usages, see https://en.wikibooks.org/wiki/GLSL_Programming/Vector_and_Matrix_Operations\n` + evalValue;
+// This is GLSL v330. For basic usage, see https://en.wikibooks.org/wiki/GLSL_Programming/Vector_and_Matrix_Operations\n` + evalValue;
 
     colorEditor.setValue(colorValue, -1);
     evalEditor.setValue(evalValue, -1);
@@ -430,4 +428,17 @@ function UIInit(){
     colorEditor.session.setMode(new GlslMode());
     evalEditor.session.setMode(new GlslMode());
     normalEditor.session.setMode(new GlslMode());
+
+    // set up pause key as pause / resume
+    const html = document.getElementsByTagName('html')[0];
+    html.onkeydown = e => {
+        if(e.key === 'p'){
+            // toggle pause / resume
+            if(renderingPaused){
+                resumeClicked();
+            } else {
+                pauseClicked();
+            }
+        }
+    };
 }
