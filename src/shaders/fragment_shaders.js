@@ -344,7 +344,7 @@ uvec4 setOctantValue(uvec4 octantData, int octDx, int octDy, int octDz, uint val
 `;
 
 const getOctantValue = `
-uint getOctantValue(usampler2D data, ivec3 voxPos, int octDx, int octDy, int octDz){
+uint getOctantValue(highp usampler2D data, ivec3 voxPos, int octDx, int octDy, int octDz){
     if(voxPos.x < 0 || voxPos.y < 0 || voxPos.z < 0 || voxPos.x > 127 || voxPos.y > 127 || voxPos.z > 127){
         return 128u;
     }
